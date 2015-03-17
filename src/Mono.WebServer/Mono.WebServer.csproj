@@ -1,0 +1,128 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>10.0.0</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{5339C36C-A524-44CE-93BD-59A79F57B346}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Mono.WebServer</RootNamespace>
+    <AssemblyName>Mono.WebServer</AssemblyName>
+    <SignAssembly>false</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\mono.snk</AssemblyOriginatorKeyFile>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug</OutputPath>
+    <DefineConstants>DEBUG;</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ConsolePause>false</ConsolePause>
+    <TargetFrameworkVersion>v2.0</TargetFrameworkVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release</OutputPath>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ConsolePause>false</ConsolePause>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug-3.5|AnyCPU'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\Debug-3.5\</OutputPath>
+    <DefineConstants>DEBUG;</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <WarningLevel>4</WarningLevel>
+    <Optimize>false</Optimize>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release-3.5|AnyCPU'">
+    <OutputPath>bin\Release-3.5\</OutputPath>
+    <Optimize>true</Optimize>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <DebugType>none</DebugType>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Web" />
+    <Reference Include="System.Configuration" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <Compile Include="ApplicationServer.cs" />
+    <Compile Include="BaseApplicationHost.cs" />
+    <Compile Include="BaseRequestBroker.cs" />
+    <Compile Include="EndOfRequestHandler.cs" />
+    <Compile Include="FinePlatformID.cs" />
+    <Compile Include="HttpErrors.cs" />
+    <Compile Include="IApplicationHost.cs" />
+    <Compile Include="InitialWorkerRequest.cs" />
+    <Compile Include="IRequestBroker.cs" />
+    <Compile Include="LingeringNetworkStream.cs" />
+    <Compile Include="LockRecursionException.cs" />
+    <Compile Include="LockRecursionPolicy.cs" />
+    <Compile Include="Log\Logger.cs" />
+    <Compile Include="Log\LogLevel.cs" />
+    <Compile Include="MapPathEventArgs.cs" />
+    <Compile Include="MapPathEventHandler.cs" />
+    <Compile Include="MonoWorkerRequest.cs" />
+    <Compile Include="Options\ConfigurationManagerExtensions.cs" />
+    <Compile Include="Options\ConfigurationManager.Fields.cs" />
+    <Compile Include="Options\IHelpConfigurationManager.cs" />
+    <Compile Include="Options\ServerConfigurationManager.cs" />
+    <Compile Include="Options\ConfigurationManager.cs" />
+    <Compile Include="Options\Options.cs" />
+    <Compile Include="Options\Descriptions.cs" />
+    <Compile Include="Paths.cs" />
+    <Compile Include="Platform.cs" />
+    <Compile Include="RequestData.cs" />
+    <Compile Include="RequestLineException.cs" />
+    <Compile Include="SearchPattern.cs" />
+    <Compile Include="UnregisterRequestEventArgs.cs" />
+    <Compile Include="UnregisterRequestEventHandler.cs" />
+    <Compile Include="Version.cs" />
+    <Compile Include="VPathToHost.cs" />
+    <Compile Include="WebSource.cs" />
+    <Compile Include="Worker.cs" />
+    <Compile Include="WebTrace.cs" />
+    <Compile Include="Log\FileLogger.cs" />
+    <Compile Include="Log\ILogger.cs" />
+    <Compile Include="IdentityToken.cs" />
+    <Compile Include="Options\Settings\BoolSetting.cs" />
+    <Compile Include="Options\Settings\Int32Setting.cs" />
+    <Compile Include="Options\Settings\EnumSetting.cs" />
+    <Compile Include="Options\Settings\UInt16Setting.cs" />
+    <Compile Include="Options\Settings\UInt32Setting.cs" />
+    <Compile Include="Options\Settings\StringSetting.cs" />
+    <Compile Include="Options\Settings\NullableInt32Setting.cs" />
+    <Compile Include="Options\Settings\NullableSetting.cs" />
+    <Compile Include="Options\Settings\ISetting.cs" />
+    <Compile Include="Options\Settings\NullableUInt16Setting.cs" />
+    <Compile Include="Options\Settings\Setting.cs" />
+    <Compile Include="Options\Settings\SettingsCollection.cs" />
+    <Compile Include="Options\Settings\SettingSource.cs" />
+    <Compile Include="Options\Settings\Parser.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Libs\Mono.Posix.dll" />
+    <Content Include="Libs\Mono.Security.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\MonoDeps\MonoDeps.csproj">
+      <Project>{64823a76-9da2-4d55-bbad-4fcf522a02b4}</Project>
+      <Name>MonoDeps</Name>
+    </ProjectReference>
+  </ItemGroup>
+</Project>
