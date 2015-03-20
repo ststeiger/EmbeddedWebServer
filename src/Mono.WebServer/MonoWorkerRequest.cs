@@ -45,586 +45,646 @@ using System.Web.Hosting;
 using Mono.WebServer.Log;
 
 namespace Mono.WebServer
-{	
-	public abstract class MonoWorkerRequest : SimpleWorkerRequest
-	{
-		const string DEFAULT_EXCEPTION_HTML = "<html><head><title>Runtime Error</title></head><body>An exception ocurred:<pre>{0}</pre></body></html>";
-		static readonly char[] mapPathTrimStartChars = { '/' };
+{
+    public abstract class MonoWorkerRequest : SimpleWorkerRequest
+    {
+        const string DEFAULT_EXCEPTION_HTML = "<html><head><title>Runtime Error</title></head><body>An exception ocurred:<pre>{0}</pre></body></html>";
+        static readonly char[] mapPathTrimStartChars = { '/' };
 
-		static bool checkFileAccess = true;
-		readonly static bool needToReplacePathSeparator;
-		readonly static char pathSeparatorChar;
-		
-		readonly IApplicationHost appHostBase;
-		Encoding encoding;
-		Encoding headerEncoding;
-		byte [] queryStringBytes;
-		string hostVPath;
-		string hostPath;
-		string hostPhysicalRoot;
-		EndOfSendNotification end_send;
-		object end_send_data;
-		X509Certificate client_cert;
-		NameValueCollection server_variables;
-		bool inUnhandledException;
-		
- 		// as we must have the client certificate (if provided) then we're able to avoid
- 		// pre-calculating some items (and cache them if we have to calculate)
- 		string cert_cookie;
- 		string cert_issuer;
- 		string cert_serial;
- 		string cert_subject;
+        static bool checkFileAccess = true;
+        readonly static bool needToReplacePathSeparator;
+        readonly static char pathSeparatorChar;
 
-		protected byte[] server_raw;
-		protected byte[] client_raw;
+        readonly IApplicationHost appHostBase;
+        Encoding encoding;
+        Encoding headerEncoding;
+        byte[] queryStringBytes;
+        string hostVPath;
+        string hostPath;
+        string hostPhysicalRoot;
+        EndOfSendNotification end_send;
+        object end_send_data;
+        X509Certificate client_cert;
+        NameValueCollection server_variables;
+        bool inUnhandledException;
 
-		public event MapPathEventHandler MapPathEvent;
-		public event EndOfRequestHandler EndOfRequestEvent;
+        // as we must have the client certificate (if provided) then we're able to avoid
+        // pre-calculating some items (and cache them if we have to calculate)
+        string cert_cookie;
+        string cert_issuer;
+        string cert_serial;
+        string cert_subject;
 
-		public abstract int RequestId { get; }
+        protected byte[] server_raw;
+        protected byte[] client_raw;
 
-		protected static bool RunningOnWindows { get; private set; }
+        public event MapPathEventHandler MapPathEvent;
+        public event EndOfRequestHandler EndOfRequestEvent;
 
-		public static bool CheckFileAccess {
-			get { return checkFileAccess; }
-			set { checkFileAccess = value; }
-		}
-		
-		// Gets the physical path of the application host of the
-		// current instance.
-		string HostPath {
-			get {
-				if (hostPath == null)
-					hostPath = appHostBase.Path;
+        public abstract int RequestId { get; }
 
-				return hostPath;
-			}
-		}
+        protected static bool RunningOnWindows { get; private set; }
 
-		// Gets the virtual path of the application host of the
-		// current instance.
-		string HostVPath {
-			get {
-				if (hostVPath == null)
-					hostVPath = appHostBase.VPath;
+        public static bool CheckFileAccess
+        {
+            get { return checkFileAccess; }
+            set { checkFileAccess = value; }
+        }
 
-				return hostVPath;
-			}
-		}
+        // Gets the physical path of the application host of the
+        // current instance.
+        string HostPath
+        {
+            get
+            {
+                if (hostPath == null)
+                    hostPath = appHostBase.Path;
 
-		string HostPhysicalRoot {
-			get {
-				if (hostPhysicalRoot == null)
-					hostPhysicalRoot = appHostBase.Server.PhysicalRoot;
+                return hostPath;
+            }
+        }
 
-				return hostPhysicalRoot;
-			}
-		}
-		
-		protected virtual Encoding Encoding {
-			get {
-				if (encoding == null)
-					encoding = Encoding.GetEncoding (28591);
+        // Gets the virtual path of the application host of the
+        // current instance.
+        string HostVPath
+        {
+            get
+            {
+                if (hostVPath == null)
+                    hostVPath = appHostBase.VPath;
 
-				return encoding;
-			}
-			set {
-				encoding = value;
-			}
-		}
+                return hostVPath;
+            }
+        }
 
-		protected virtual Encoding HeaderEncoding {
-			get {
-				if (headerEncoding == null) {
-					HttpContext ctx = HttpContext.Current;
-					HttpResponse response = ctx != null ? ctx.Response : null;
-					Encoding enc = inUnhandledException ? null :
-						response != null ? response.HeaderEncoding : null;
-					headerEncoding = enc ?? Encoding;
-				}
-				return headerEncoding;
-			}
-		}
-		
-		static MonoWorkerRequest ()
-		{
-			PlatformID pid = Environment.OSVersion.Platform;
-			RunningOnWindows = ((int) pid != 128 && pid != PlatformID.Unix && pid != PlatformID.MacOSX);
+        string HostPhysicalRoot
+        {
+            get
+            {
+                if (hostPhysicalRoot == null)
+                    hostPhysicalRoot = appHostBase.Server.PhysicalRoot;
 
-			if (Path.DirectorySeparatorChar != '/') {
-				needToReplacePathSeparator = true;
-				pathSeparatorChar = Path.DirectorySeparatorChar;
-			}
-			
-			try {
-				string v = ConfigurationManager.AppSettings ["MonoServerCheckHiddenFiles"];
-				if (!String.IsNullOrEmpty (v)) {
-					if (!Boolean.TryParse (v, out checkFileAccess))
-						checkFileAccess = true;
-				}
-			} catch (Exception) {
-				// ignore
-				checkFileAccess = true;
-			}
-		}
+                return hostPhysicalRoot;
+            }
+        }
 
-		protected MonoWorkerRequest (IApplicationHost appHost)
-			: base (String.Empty, String.Empty, null)
-		{
-			if (appHost == null)
-				throw new ArgumentNullException ("appHost");
+        protected virtual Encoding Encoding
+        {
+            get
+            {
+                if (encoding == null)
+                    encoding = Encoding.GetEncoding(28591);
 
-			appHostBase = appHost;
-		}
+                return encoding;
+            }
+            set
+            {
+                encoding = value;
+            }
+        }
 
-		public override string GetAppPath ()
-		{
-			return HostVPath;
-		}
+        protected virtual Encoding HeaderEncoding
+        {
+            get
+            {
+                if (headerEncoding == null)
+                {
+                    HttpContext ctx = HttpContext.Current;
+                    HttpResponse response = ctx != null ? ctx.Response : null;
+                    Encoding enc = inUnhandledException ? null :
+                        response != null ? response.HeaderEncoding : null;
+                    headerEncoding = enc ?? Encoding;
+                }
+                return headerEncoding;
+            }
+        }
 
-		public override string GetAppPathTranslated ()
-		{
-			return HostPath;
-		}
+        static MonoWorkerRequest()
+        {
+            PlatformID pid = Environment.OSVersion.Platform;
+            RunningOnWindows = ((int)pid != 128 && pid != PlatformID.Unix && pid != PlatformID.MacOSX);
 
-		public override string GetFilePathTranslated ()
-		{
-			return MapPath (GetFilePath ());
-		}
+            if (Path.DirectorySeparatorChar != '/')
+            {
+                needToReplacePathSeparator = true;
+                pathSeparatorChar = Path.DirectorySeparatorChar;
+            }
 
-		public override string GetLocalAddress ()
-		{
-			return "localhost";
-		}
+            try
+            {
+                string v = ConfigurationManager.AppSettings["MonoServerCheckHiddenFiles"];
+                if (!String.IsNullOrEmpty(v))
+                {
+                    if (!Boolean.TryParse(v, out checkFileAccess))
+                        checkFileAccess = true;
+                }
+            }
+            catch (Exception)
+            {
+                // ignore
+                checkFileAccess = true;
+            }
+        }
 
-		public override string GetServerName ()
-		{
-			string hostHeader = GetKnownRequestHeader(HeaderHost);
-			if (String.IsNullOrEmpty (hostHeader)) {
-				hostHeader = GetLocalAddress ();
-			} else {
-				int colonIndex = hostHeader.IndexOf (':');
-				if (colonIndex > 0) {
-					hostHeader = hostHeader.Substring (0, colonIndex);
-				} else if (colonIndex == 0) {
-					hostHeader = GetLocalAddress ();
-				}
-			}
-			return hostHeader;
-		}
+        protected MonoWorkerRequest(IApplicationHost appHost)
+            : base(String.Empty, String.Empty, null)
+        {
+            if (appHost == null)
+                throw new ArgumentNullException("appHost");
 
-		public override int GetLocalPort ()
-		{
-			return 0;
-		}
+            appHostBase = appHost;
+        }
 
-		public override byte [] GetPreloadedEntityBody ()
-		{
-			return null;
-		}
+        public override string GetAppPath()
+        {
+            return HostVPath;
+        }
 
-		public override byte [] GetQueryStringRawBytes ()
-		{
-			if (queryStringBytes == null) {
-				string queryString = GetQueryString ();
-				if (queryString != null)
-					queryStringBytes = Encoding.GetBytes (queryString);
-			}
+        public override string GetAppPathTranslated()
+        {
+            return HostPath;
+        }
 
-			return queryStringBytes;
-		}
+        public override string GetFilePathTranslated()
+        {
+            return MapPath(GetFilePath());
+        }
 
-		// Invokes the registered delegates one by one until the path is mapped.
-		//
-		// Parameters:
-		//    path = virutal path of the request.
-		//
-		// Returns a string containing the mapped physical path of the request, or null if
-		// the path was not successfully mapped.
-		//
-		string DoMapPathEvent (string path)
-		{
-			if (MapPathEvent != null) {
-				var args = new MapPathEventArgs (path);
-				foreach (MapPathEventHandler evt in MapPathEvent.GetInvocationList ()) {
-					evt (this, args);
-					if (args.IsMapped)
-						return args.MappedPath;
-				}
-			}
+        public override string GetLocalAddress()
+        {
+            return "localhost";
+        }
 
-			return null;
-		}
+        public override string GetServerName()
+        {
+            string hostHeader = GetKnownRequestHeader(HeaderHost);
+            if (String.IsNullOrEmpty(hostHeader))
+            {
+                hostHeader = GetLocalAddress();
+            }
+            else
+            {
+                int colonIndex = hostHeader.IndexOf(':');
+                if (colonIndex > 0)
+                {
+                    hostHeader = hostHeader.Substring(0, colonIndex);
+                }
+                else if (colonIndex == 0)
+                {
+                    hostHeader = GetLocalAddress();
+                }
+            }
+            return hostHeader;
+        }
 
-		// The logic here is as follows:
-		//
-		// If path is equal to the host's virtual path (including trailing slash),
-		// return the host virtual path.
-		//
-		// If path is absolute (starts with '/') then check if it's under our host vpath. If
-		// it is, base the mapping under the virtual application's physical path. If it
-		// isn't use the physical root of the application server to return the mapped
-		// path. If you have just one application configured, then the values computed in
-		// both of the above cases will be the same. If you have several applications
-		// configured for this xsp/mod-mono-server instance, then virtual paths outside our
-		// application virtual path will return physical paths relative to the server's
-		// physical root, not application's. This is consistent with the way IIS worker
-		// request works. See bug #575600
-		//
-		public override string MapPath (string path)
-		{
-			string eventResult = DoMapPathEvent (path);
-			if (eventResult != null)
-				return eventResult;
+        public override int GetLocalPort()
+        {
+            return 0;
+        }
 
-			string hostVPath = HostVPath;
-			int hostVPathLen = HostVPath.Length;
-			int pathLen = path != null ? path.Length : 0;
+        public override byte[] GetPreloadedEntityBody()
+        {
+            return null;
+        }
+
+        public override byte[] GetQueryStringRawBytes()
+        {
+            if (queryStringBytes == null)
+            {
+                string queryString = GetQueryString();
+                if (queryString != null)
+                    queryStringBytes = Encoding.GetBytes(queryString);
+            }
+
+            return queryStringBytes;
+        }
+
+        // Invokes the registered delegates one by one until the path is mapped.
+        //
+        // Parameters:
+        //    path = virutal path of the request.
+        //
+        // Returns a string containing the mapped physical path of the request, or null if
+        // the path was not successfully mapped.
+        //
+        string DoMapPathEvent(string path)
+        {
+            if (MapPathEvent != null)
+            {
+                var args = new MapPathEventArgs(path);
+                foreach (MapPathEventHandler evt in MapPathEvent.GetInvocationList())
+                {
+                    evt(this, args);
+                    if (args.IsMapped)
+                        return args.MappedPath;
+                }
+            }
+
+            return null;
+        }
+
+        // The logic here is as follows:
+        //
+        // If path is equal to the host's virtual path (including trailing slash),
+        // return the host virtual path.
+        //
+        // If path is absolute (starts with '/') then check if it's under our host vpath. If
+        // it is, base the mapping under the virtual application's physical path. If it
+        // isn't use the physical root of the application server to return the mapped
+        // path. If you have just one application configured, then the values computed in
+        // both of the above cases will be the same. If you have several applications
+        // configured for this xsp/mod-mono-server instance, then virtual paths outside our
+        // application virtual path will return physical paths relative to the server's
+        // physical root, not application's. This is consistent with the way IIS worker
+        // request works. See bug #575600
+        //
+        public override string MapPath(string path)
+        {
+            string eventResult = DoMapPathEvent(path);
+            if (eventResult != null)
+                return eventResult;
+
+            string hostVPath = HostVPath;
+            int hostVPathLen = HostVPath.Length;
+            int pathLen = path != null ? path.Length : 0;
 #if NET_2_0
 			bool inThisApp = path.StartsWith (hostVPath, StringComparison.Ordinal);
 #else
-			bool inThisApp = path.StartsWith (hostVPath);
+            bool inThisApp = path.StartsWith(hostVPath);
 #endif
-			if (pathLen == 0 || (inThisApp && (pathLen == hostVPathLen || (pathLen == hostVPathLen + 1 && path [pathLen - 1] == '/')))) {
-				if (needToReplacePathSeparator)
-					return HostPath.Replace ('/', pathSeparatorChar);
-				return HostPath;
-			}
+            if (pathLen == 0 || (inThisApp && (pathLen == hostVPathLen || (pathLen == hostVPathLen + 1 && path[pathLen - 1] == '/'))))
+            {
+                if (needToReplacePathSeparator)
+                    return HostPath.Replace('/', pathSeparatorChar);
+                return HostPath;
+            }
 
-			string basePath = null;
-			switch (path [0]) {
-				case '~':
-					if (path.Length >= 2 && path [1] == '/')
-						path = path.Substring (1);
-					break;
+            string basePath = null;
+            switch (path[0])
+            {
+                case '~':
+                    if (path.Length >= 2 && path[1] == '/')
+                        path = path.Substring(1);
+                    break;
 
-				case '/':
-					if (!inThisApp)
-						basePath = HostPhysicalRoot;
-					break;
-			}
+                case '/':
+                    if (!inThisApp)
+                        basePath = HostPhysicalRoot;
+                    break;
+            }
 
-			if (basePath == null)
-				basePath = HostPath;
-			
-			if (inThisApp && (path.Length == hostVPathLen || path [hostVPathLen] == '/'))
-				path = path.Substring (hostVPathLen + 1);
-			
-			path = path.TrimStart (mapPathTrimStartChars);
-			if (needToReplacePathSeparator)
-				path = path.Replace ('/', pathSeparatorChar);
-			
-			return Path.Combine (basePath, path);
-		}
+            if (basePath == null)
+                basePath = HostPath;
 
-		protected abstract bool GetRequestData ();		
+            if (inThisApp && (path.Length == hostVPathLen || path[hostVPathLen] == '/'))
+                path = path.Substring(hostVPathLen + 1);
 
-		public bool ReadRequestData ()
-		{
-			return GetRequestData ();
-		}
+            path = path.TrimStart(mapPathTrimStartChars);
+            if (needToReplacePathSeparator)
+                path = path.Replace('/', pathSeparatorChar);
 
-		static void LocationAccessible (string localPath)
-		{
-			bool doThrow = false;
-			
-			if (RunningOnWindows) {
-				try {
-					var fi = new FileInfo (localPath);
-					FileAttributes attr = fi.Attributes;
+            return Path.Combine(basePath, path);
+        }
 
-					if ((attr & FileAttributes.Hidden) != 0 || (attr & FileAttributes.System) != 0)
-						doThrow = true;
-				} catch (Exception) {
-					// ignore, will be handled in system.web
-					return;
-				}
-			} else {
-				// throw only if the file exists, let system.web handle the request
-				// otherwise 
-				if (File.Exists (localPath) || Directory.Exists (localPath))
-					if (Path.GetFileName (localPath) [0] == '.')
-						doThrow = true;
-			}
+        protected abstract bool GetRequestData();
 
-			if (doThrow)
-				throw new HttpException (403, "Forbidden.");
-		}
-		
-		void AssertFileAccessible ()
-		{
-			if (!checkFileAccess)
-				return;
-			
-			string localPath = GetFilePathTranslated ();
-			if (String.IsNullOrEmpty (localPath))
-				return;
+        public bool ReadRequestData()
+        {
+            return GetRequestData();
+        }
 
-			char dirsep = Path.DirectorySeparatorChar;
-			string appPath = GetAppPathTranslated ();
-			string[] segments = localPath.Substring (appPath.Length).Split (dirsep);
+        static void LocationAccessible(string localPath)
+        {
+            bool doThrow = false;
 
-			var sb = new StringBuilder (appPath);
-			foreach (string s in segments) {
-				if (s.Length == 0)
-					continue;
-				
-				if (s [0] != '.') {
-					sb.Append (s);
-					sb.Append (dirsep);
-					continue;
-				}
+            if (RunningOnWindows)
+            {
+                try
+                {
+                    var fi = new FileInfo(localPath);
+                    FileAttributes attr = fi.Attributes;
 
-				sb.Append (s);
-				LocationAccessible (sb.ToString ());
-			}
-		}
+                    if ((attr & FileAttributes.Hidden) != 0 || (attr & FileAttributes.System) != 0)
+                        doThrow = true;
+                }
+                catch (Exception)
+                {
+                    // ignore, will be handled in system.web
+                    return;
+                }
+            }
+            else
+            {
+                // throw only if the file exists, let system.web handle the request
+                // otherwise 
+                if (File.Exists(localPath) || Directory.Exists(localPath))
+                    if (Path.GetFileName(localPath)[0] == '.')
+                        doThrow = true;
+            }
 
-		public void ProcessRequest ()
-		{
-			string error = null;
-			inUnhandledException = false;
-			
-			try {
-				AssertFileAccessible ();
-				HttpRuntime.ProcessRequest (this);
-			} catch (HttpException ex) {
-				inUnhandledException = true;
-				error = ex.GetHtmlErrorMessage ();
-			} catch (Exception ex) {
-				inUnhandledException = true;
-				var hex = new HttpException (400, "Bad request", ex);
-				error = hex.GetHtmlErrorMessage ();
-			}
+            if (doThrow)
+                throw new HttpException(403, "Forbidden.");
+        }
 
-			if (!inUnhandledException)
-				return;
-			
-			if (error.Length == 0)
-				error = String.Format (DEFAULT_EXCEPTION_HTML, "Unknown error");
+        void AssertFileAccessible()
+        {
+            if (!checkFileAccess)
+                return;
 
-			try {
-				SendStatus (400, "Bad request");
-				SendUnknownResponseHeader ("Connection", "close");
-				SendUnknownResponseHeader ("Date", DateTime.Now.ToUniversalTime ().ToString ("r"));
-				
-				Encoding enc = Encoding.UTF8;
-				
-				byte[] bytes = enc.GetBytes (error);
-				
-				SendUnknownResponseHeader ("Content-Type", "text/html; charset=" + enc.WebName);
-				SendUnknownResponseHeader ("Content-Length", bytes.Length.ToString ());
-				SendResponseFromMemory (bytes, bytes.Length);
-				FlushResponse (true);
-			} catch (Exception ex) { // should "never" happen
-				Logger.Write (LogLevel.Error, "Error while processing a request: ");
-				Logger.Write (ex);
-				throw;
-			}
-		}
+            string localPath = GetFilePathTranslated();
+            if (String.IsNullOrEmpty(localPath))
+                return;
 
-		public override void EndOfRequest ()
-		{
-			if (EndOfRequestEvent != null)
-				EndOfRequestEvent (this);
+            char dirsep = Path.DirectorySeparatorChar;
+            string appPath = GetAppPathTranslated();
+            string[] segments = localPath.Substring(appPath.Length).Split(dirsep);
 
-			if (end_send != null)
-				end_send (this, end_send_data);
-		}		
+            var sb = new StringBuilder(appPath);
+            foreach (string s in segments)
+            {
+                if (s.Length == 0)
+                    continue;
 
-		public override void SetEndOfSendNotification (EndOfSendNotification callback, object extraData)
-		{
-			end_send = callback;
-			end_send_data = extraData;
-		}
+                if (s[0] != '.')
+                {
+                    sb.Append(s);
+                    sb.Append(dirsep);
+                    continue;
+                }
 
-		public override void SendCalculatedContentLength (int contentLength)
-		{
-			//FIXME: Should we ignore this for apache2?
-			SendUnknownResponseHeader ("Content-Length", contentLength.ToString ());
-		}
+                sb.Append(s);
+                LocationAccessible(sb.ToString());
+            }
+        }
 
-		public override void SendKnownResponseHeader (int index, string value)
-		{
-			if (HeadersSent ())
-				return;
+        public void ProcessRequest()
+        {
+            string error = null;
+            inUnhandledException = false;
 
-			string headerName = GetKnownResponseHeaderName (index);
-			SendUnknownResponseHeader (headerName, value);
-		}
+            try
+            {
+                AssertFileAccessible();
+                HttpRuntime.ProcessRequest(this);
+            }
+            catch (HttpException ex)
+            {
+                inUnhandledException = true;
+                error = ex.GetHtmlErrorMessage();
+            }
+            catch (Exception ex)
+            {
+                inUnhandledException = true;
+                var hex = new HttpException(400, "Bad request", ex);
+                error = hex.GetHtmlErrorMessage();
+            }
 
-		protected void SendFromStream (Stream stream, long offset, long length)
-		{
-			if (offset < 0 || length <= 0)
-				return;
-			
-			long stLength = stream.Length;
-			if (offset + length > stLength)
-				length = stLength - offset;
+            if (!inUnhandledException)
+                return;
 
-			if (offset > 0)
-				stream.Seek (offset, SeekOrigin.Begin);
+            if (error.Length == 0)
+                error = String.Format(DEFAULT_EXCEPTION_HTML, "Unknown error");
 
-			var fileContent = new byte [8192];
-			int count = fileContent.Length;
-			while (length > 0 && (count = stream.Read (fileContent, 0, count)) != 0) {
-				SendResponseFromMemory (fileContent, count);
-				length -= count;
-				// Keep the System. prefix
-				count = (int) System.Math.Min (length, fileContent.Length);
-			}
-		}
+            try
+            {
+                SendStatus(400, "Bad request");
+                SendUnknownResponseHeader("Connection", "close");
+                SendUnknownResponseHeader("Date", DateTime.Now.ToUniversalTime().ToString("r"));
 
-		public override void SendResponseFromFile (string filename, long offset, long length)
-		{
-			FileStream file = null;
-			try {
-				file = File.OpenRead (filename);
-				SendFromStream (file, offset, length);
-			} finally {
-				if (file != null)
-					file.Close ();
-			}
-		}
+                Encoding enc = Encoding.UTF8;
 
-		public override void SendResponseFromFile (IntPtr handle, long offset, long length)
-		{
-			Stream file = null;
-			try {
-				file = new FileStream (handle, FileAccess.Read);
-				SendFromStream (file, offset, length);
-			} finally {
-				if (file != null)
-					file.Close ();
-			}
-		}
-		
-		public override string GetServerVariable (string name)
-		{
-			if (server_variables == null)
-				return String.Empty;
+                byte[] bytes = enc.GetBytes(error);
 
-			if (IsSecure ()) {
-	 			X509Certificate client = ClientCertificate;
-	 			switch (name) {
- 				case "CERT_COOKIE":
- 					if (cert_cookie == null) {
- 						if (client == null)
- 							cert_cookie = String.Empty;
- 						else
- 							cert_cookie = client.GetCertHashString ();
- 					}
- 					return cert_cookie;
-	 			case "CERT_ISSUER":
-	 				if (cert_issuer == null) {
-	 					if (client == null)
-	 						cert_issuer = String.Empty;
-	 					else
-							cert_issuer = client.Issuer;
-	 				}
-	 				return cert_issuer;
-	 			case "CERT_SERIALNUMBER":
-	 				if (cert_serial == null) {
-	 					if (client == null)
-	 						cert_serial = String.Empty;
-	 					else
-	 						cert_serial = client.GetSerialNumberString ();
-	 				}
-	 				return cert_serial;
-	 			case "CERT_SUBJECT":
-	 				if (cert_subject == null) {
-	 					if (client == null)
-	 						cert_subject = String.Empty;
-	 					else
-							cert_subject = client.Subject;
-	 				}
-					return cert_subject;
-	 			}
-			}
+                SendUnknownResponseHeader("Content-Type", "text/html; charset=" + enc.WebName);
+                SendUnknownResponseHeader("Content-Length", bytes.Length.ToString());
+                SendResponseFromMemory(bytes, bytes.Length);
+                FlushResponse(true);
+            }
+            catch (Exception ex)
+            { // should "never" happen
+                Logger.Write(LogLevel.Error, "Error while processing a request: ");
+                Logger.Write(ex);
+                throw;
+            }
+        }
 
-			string s = server_variables [name];
-			return s ?? String.Empty;
-		}
+        public override void EndOfRequest()
+        {
+            if (EndOfRequestEvent != null)
+                EndOfRequestEvent(this);
 
-		public void AddServerVariable (string name, string value)
-		{
-			if (server_variables == null)
-				server_variables = new NameValueCollection ();
+            if (end_send != null)
+                end_send(this, end_send_data);
+        }
 
-			server_variables.Add (name, value);
-		}
+        public override void SetEndOfSendNotification(EndOfSendNotification callback, object extraData)
+        {
+            end_send = callback;
+            end_send_data = extraData;
+        }
 
-		#region Client Certificate Support
+        public override void SendCalculatedContentLength(int contentLength)
+        {
+            //FIXME: Should we ignore this for apache2?
+            SendUnknownResponseHeader("Content-Length", contentLength.ToString());
+        }
 
-		public X509Certificate ClientCertificate {
-			get {
-				if ((client_cert == null) && (client_raw != null))
-					client_cert = new X509Certificate (client_raw);
-				return client_cert;
-			}
-		}
+        public override void SendKnownResponseHeader(int index, string value)
+        {
+            if (HeadersSent())
+                return;
 
-		public void SetClientCertificate (byte[] rawcert)
-		{
-			client_raw = rawcert;
-		}
+            string headerName = GetKnownResponseHeaderName(index);
+            SendUnknownResponseHeader(headerName, value);
+        }
 
-		public override byte[] GetClientCertificate ()
-		{
-			return client_raw;
-		}		
+        protected void SendFromStream(Stream stream, long offset, long length)
+        {
+            if (offset < 0 || length <= 0)
+                return;
 
-		public override byte[] GetClientCertificateBinaryIssuer ()
-		{
-			if (ClientCertificate == null)
-				return base.GetClientCertificateBinaryIssuer ();
-			// TODO: not 100% sure of the content
-			return new byte [0];
-		}
-		
-		public override int GetClientCertificateEncoding ()
-		{
-			if (ClientCertificate == null)
-				return base.GetClientCertificateEncoding ();
-			return 0;
-		}
-		
-		public override byte[] GetClientCertificatePublicKey ()
-		{
-			if (ClientCertificate == null)
-				return base.GetClientCertificatePublicKey ();
-			return ClientCertificate.GetPublicKey ();
-		}
+            long stLength = stream.Length;
+            if (offset + length > stLength)
+                length = stLength - offset;
 
-		public override DateTime GetClientCertificateValidFrom ()
-		{
-			if (ClientCertificate == null)
-				return base.GetClientCertificateValidFrom ();
-			return DateTime.Parse (ClientCertificate.GetEffectiveDateString ());
-		}
+            if (offset > 0)
+                stream.Seek(offset, SeekOrigin.Begin);
 
-		public override DateTime GetClientCertificateValidUntil ()
-		{
-			if (ClientCertificate == null)
-				return base.GetClientCertificateValidUntil ();
-			return DateTime.Parse (ClientCertificate.GetExpirationDateString ());
-		}
-		
-		#endregion
+            var fileContent = new byte[8192];
+            int count = fileContent.Length;
+            while (length > 0 && (count = stream.Read(fileContent, 0, count)) != 0)
+            {
+                SendResponseFromMemory(fileContent, count);
+                length -= count;
+                // Keep the System. prefix
+                count = (int)System.Math.Min(length, fileContent.Length);
+            }
+        }
 
-		protected static string[] SplitAndTrim (string list)
-		{
-			if (String.IsNullOrEmpty (list))
-				return new string[0];
+        public override void SendResponseFromFile(string filename, long offset, long length)
+        {
+            FileStream file = null;
+            try
+            {
+                file = File.OpenRead(filename);
+                SendFromStream(file, offset, length);
+            }
+            finally
+            {
+                if (file != null)
+                    file.Close();
+            }
+        }
+
+        public override void SendResponseFromFile(IntPtr handle, long offset, long length)
+        {
+            Stream file = null;
+            try
+            {
+                file = new FileStream(handle, FileAccess.Read);
+                SendFromStream(file, offset, length);
+            }
+            finally
+            {
+                if (file != null)
+                    file.Close();
+            }
+        }
+
+        public override string GetServerVariable(string name)
+        {
+            if (server_variables == null)
+                return String.Empty;
+
+            if (IsSecure())
+            {
+                X509Certificate client = ClientCertificate;
+                switch (name)
+                {
+                    case "CERT_COOKIE":
+                        if (cert_cookie == null)
+                        {
+                            if (client == null)
+                                cert_cookie = String.Empty;
+                            else
+                                cert_cookie = client.GetCertHashString();
+                        }
+                        return cert_cookie;
+                    case "CERT_ISSUER":
+                        if (cert_issuer == null)
+                        {
+                            if (client == null)
+                                cert_issuer = String.Empty;
+                            else
+                                cert_issuer = client.Issuer;
+                        }
+                        return cert_issuer;
+                    case "CERT_SERIALNUMBER":
+                        if (cert_serial == null)
+                        {
+                            if (client == null)
+                                cert_serial = String.Empty;
+                            else
+                                cert_serial = client.GetSerialNumberString();
+                        }
+                        return cert_serial;
+                    case "CERT_SUBJECT":
+                        if (cert_subject == null)
+                        {
+                            if (client == null)
+                                cert_subject = String.Empty;
+                            else
+                                cert_subject = client.Subject;
+                        }
+                        return cert_subject;
+                }
+            }
+
+            string s = server_variables[name];
+            return s ?? String.Empty;
+        }
+
+        public void AddServerVariable(string name, string value)
+        {
+            if (server_variables == null)
+                server_variables = new NameValueCollection();
+
+            server_variables.Add(name, value);
+        }
+
+        #region Client Certificate Support
+
+        public X509Certificate ClientCertificate
+        {
+            get
+            {
+                if ((client_cert == null) && (client_raw != null))
+                    client_cert = new X509Certificate(client_raw);
+                return client_cert;
+            }
+        }
+
+        public void SetClientCertificate(byte[] rawcert)
+        {
+            client_raw = rawcert;
+        }
+
+        public override byte[] GetClientCertificate()
+        {
+            return client_raw;
+        }
+
+        public override byte[] GetClientCertificateBinaryIssuer()
+        {
+            if (ClientCertificate == null)
+                return base.GetClientCertificateBinaryIssuer();
+            // TODO: not 100% sure of the content
+            return new byte[0];
+        }
+
+        public override int GetClientCertificateEncoding()
+        {
+            if (ClientCertificate == null)
+                return base.GetClientCertificateEncoding();
+            return 0;
+        }
+
+        public override byte[] GetClientCertificatePublicKey()
+        {
+            if (ClientCertificate == null)
+                return base.GetClientCertificatePublicKey();
+            return ClientCertificate.GetPublicKey();
+        }
+
+        public override DateTime GetClientCertificateValidFrom()
+        {
+            if (ClientCertificate == null)
+                return base.GetClientCertificateValidFrom();
+            return DateTime.Parse(ClientCertificate.GetEffectiveDateString());
+        }
+
+        public override DateTime GetClientCertificateValidUntil()
+        {
+            if (ClientCertificate == null)
+                return base.GetClientCertificateValidUntil();
+            return DateTime.Parse(ClientCertificate.GetExpirationDateString());
+        }
+
+        #endregion
+
+        protected static string[] SplitAndTrim(string list)
+        {
+            if (string.IsNullOrEmpty(list))
+                return new string[0];
 
             System.Collections.Generic.List<string> ls = new System.Collections.Generic.List<string>();
 
             string[] astr = list.Split(',');
 
-            for(int i=0; i < astr.Length; ++i )
+            for (int i = 0; i < astr.Length; ++i)
             {
                 string str = astr[i].Trim();
-                if(str.Length != 0)
+                if (str.Length != 0)
                     ls.Add(str);
             }
 
@@ -635,7 +695,8 @@ namespace Mono.WebServer
 			        where trimmed.Length != 0
 			        select trimmed).ToArray ();
             */
-		}
-	}
-}
+        }
+    }
 
+
+}
